@@ -1,5 +1,11 @@
 # Админ закрытого Telegram-чата
 
+Репозиторий: https://github.com/Inmalkhur/acolite2
+
+```bash
+git clone https://github.com/Inmalkhur/acolite2.git
+```
+
 Бот на сервере (aiogram + FastAPI) ведёт закрытый чат. Локальный веб-GUI настраивает тексты и правила, забирает логи и `.md`, а Ollama вызывается только когда в очереди есть NLP-задача.
 
 ## Что умеет бот
