@@ -38,6 +38,14 @@ _ACTIVE = {
 }
 
 
+def chat_type_str(chat_or_type: object) -> str:
+    """aiogram Chat.type may be ChatType enum or a plain str depending on parse context."""
+    raw = getattr(chat_or_type, "type", chat_or_type)
+    if hasattr(raw, "value"):
+        return str(raw.value)
+    return str(raw or "supergroup")
+
+
 def _uname(message: Message) -> str:
     user = message.from_user
     if not user:
@@ -76,7 +84,7 @@ async def on_bot_membership(event: ChatMemberUpdated, bot: Bot, store: Store) ->
             chat.id,
             title=chat.title or str(chat.id),
             username=chat.username or "",
-            chat_type=chat.type.value,
+            chat_type=chat_type_str(chat),
         )
         await store.log_line(
             f"{time.time():.0f}\tbot_joined\t{chat.id}\t{cfg.title}",
@@ -110,7 +118,7 @@ async def on_join(event: ChatMemberUpdated, bot: Bot, store: Store) -> None:
         chat_id,
         title=event.chat.title or str(chat_id),
         username=event.chat.username or "",
-        chat_type=event.chat.type.value if hasattr(event.chat.type, "value") else str(event.chat.type),
+        chat_type=chat_type_str(event.chat),
     )
     if not cfg.enabled:
         return
@@ -127,7 +135,7 @@ async def greet_member(bot: Bot, store: Store, chat, user) -> None:
             chat.id,
             title=getattr(chat, "title", None) or str(chat.id),
             username=getattr(chat, "username", None) or "",
-            chat_type=getattr(getattr(chat, "type", None), "value", None) or str(getattr(chat, "type", "supergroup")),
+            chat_type=chat_type_str(chat),
         )
     if not cfg.enabled:
         return
@@ -187,7 +195,7 @@ async def cmd_ping(message: Message, store: Store) -> None:
             message.chat.id,
             title=message.chat.title or str(message.chat.id),
             username=message.chat.username or "",
-            chat_type=message.chat.type.value,
+            chat_type=chat_type_str(message.chat),
         )
     who = f"@{store.bot_username}" if store.bot_username else "бот"
     await message.answer(f"pong · {who} слышит этот чат")
@@ -205,7 +213,7 @@ async def cmd_start(message: Message, bot: Bot, store: Store) -> None:
             message.chat.id,
             title=message.chat.title or str(message.chat.id),
             username=message.chat.username or "",
-            chat_type=message.chat.type.value,
+            chat_type=chat_type_str(message.chat),
         )
         await message.answer(
             f"Чат привязан. ID: <code>{cfg.chat_id}</code>\n"
@@ -240,7 +248,7 @@ async def on_group_message(message: Message, bot: Bot, store: Store) -> None:
         chat_id,
         title=message.chat.title or str(chat_id),
         username=message.chat.username or "",
-        chat_type=message.chat.type.value,
+        chat_type=chat_type_str(message.chat),
     )
     if not cfg.enabled:
         return

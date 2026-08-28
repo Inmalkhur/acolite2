@@ -1,7 +1,18 @@
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 
+from aiogram.enums import ChatType
+
+from app.bot import chat_type_str
 from app.store import Store, _migrate_config
+
+
+def test_chat_type_str_accepts_enum_and_plain_str() -> None:
+    assert chat_type_str(SimpleNamespace(type="supergroup")) == "supergroup"
+    assert chat_type_str(SimpleNamespace(type=ChatType.SUPERGROUP)) == "supergroup"
+    assert chat_type_str("group") == "group"
+    assert chat_type_str(ChatType.GROUP) == "group"
 
 
 def test_migrate_legacy_config() -> None:
