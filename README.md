@@ -57,7 +57,7 @@ cp .env.example .env   # BOT_TOKEN, LOCAL_SYNC_SECRET, PORT=43121
 python -m app.main
 ```
 
-`PYTHONPATH` больше не обязателен: `app/main.py` сам добавляет каталог `server/` в путь. Команда `python -m app.main` из корня репозитория (`/app`) без `PYTHONPATH` как раз даёт `No module named 'app'` — используйте `python run.py` или `WORKDIR /app/server`.
+`PYTHONPATH` больше не обязателен. На Bothost образ собирается на **Python 3.11**. В настройках бота включите «Использовать собственный Dockerfile» и сделайте новый деплой; главный файл — `main.py`.
 
 Без `BOT_TOKEN` поднимается только API синка (удобно для GUI). С токеном — polling Telegram + тикер киков/напоминаний.
 

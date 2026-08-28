@@ -8,3 +8,7 @@ _SERVER_DIR = Path(__file__).resolve().parent
 _s = str(_SERVER_DIR)
 if _s not in sys.path:
     sys.path.insert(0, _s)
+
+from bootstrap import ensure_runtime_deps
+
+ensure_runtime_deps()
