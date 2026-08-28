@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.holder import BotHolder
-from app.models import BotConfig, NlpResult
+from app.models import RootConfig, NlpResult
 from app.settings import settings
 from app.store import Store
 
@@ -38,19 +38,18 @@ def create_app(store: Store, holder: BotHolder) -> FastAPI:
             "ok": True,
             "local_connected": store.local_connected,
             "bot": bool(store.bot_username),
+            "chats": len(store.chats),
         }
 
     @app.get("/api/config")
     async def get_config(x_sync_secret: str | None = Header(default=None)) -> dict:
         check(x_sync_secret)
-        return store.config.model_dump()
+        return store.root_config.model_dump()
 
     @app.put("/api/config")
-    async def put_config(cfg: BotConfig, x_sync_secret: str | None = Header(default=None)) -> dict:
+    async def put_config(cfg: RootConfig, x_sync_secret: str | None = Header(default=None)) -> dict:
         check(x_sync_secret)
-        store.config = cfg
-        await store.persist()
-        await store.broadcast({"type": "config", "config": cfg.model_dump()})
+        await store.replace_config(cfg)
         return {"ok": True}
 
     @app.post("/api/glossary")
@@ -113,8 +112,7 @@ def create_app(store: Store, holder: BotHolder) -> FastAPI:
                 raw = await websocket.receive_text()
                 msg = json.loads(raw)
                 if msg.get("type") == "config":
-                    store.config = BotConfig.model_validate(msg["config"])
-                    await store.persist()
+                    await store.replace_config(RootConfig.model_validate(msg["config"]))
                 elif msg.get("type") == "flush_logs":
                     text, start, end = store.drain_logs()
                     day = datetime.now(timezone.utc).date().isoformat()
@@ -148,26 +146,24 @@ def create_app(store: Store, holder: BotHolder) -> FastAPI:
 
 
 async def apply_nlp(store: Store, bot: Any, result: NlpResult) -> None:
-    from app.bot import complete_questionnaire
+    from app.bot import complete_questionnaire, _qkey
 
     p = result.payload
     if result.kind == "questionnaire" and p.get("is_questionnaire"):
-        uid = str(p.get("user_id"))
-        pending = store.pending_questionnaires.get(uid)
+        key = _qkey(int(p.get("chat_id") or 0), p.get("user_id"))
+        pending = store.pending_questionnaires.get(key)
         if pending and not pending.get("done"):
             pending.setdefault("fragments", []).append(p.get("text") or "")
-            await complete_questionnaire(store, uid)
+            await complete_questionnaire(store, key)
     elif result.kind == "term":
         answer = p.get("answer")
         chat_id = p.get("chat_id")
+        cfg = store.chat(int(chat_id)) if chat_id else None
+        missing = p.get("missing") or (cfg.missing_term_reply if cfg else "В базе терминов этого нет.")
         if chat_id and answer:
             await bot.send_message(chat_id, answer, reply_to_message_id=p.get("reply_to"))
         elif chat_id:
-            await bot.send_message(
-                chat_id,
-                store.config.missing_term_reply,
-                reply_to_message_id=p.get("reply_to"),
-            )
+            await bot.send_message(chat_id, missing, reply_to_message_id=p.get("reply_to"))
     elif result.kind == "schedule" and p.get("when") and p.get("title"):
         store.events.append(
             {
@@ -175,6 +171,7 @@ async def apply_nlp(store: Store, bot: Any, result: NlpResult) -> None:
                 "title": p["title"],
                 "when": float(p["when"]),
                 "author": p.get("user_id"),
+                "chat_id": p.get("chat_id"),
                 "reminders_sent": [],
             }
         )

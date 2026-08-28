@@ -5,8 +5,12 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class BotConfig(BaseModel):
-    chat_id: int | None = None
+class ChatConfig(BaseModel):
+    chat_id: int
+    title: str = ""
+    username: str = ""
+    chat_type: str = "supergroup"
+    enabled: bool = True
     welcome_text: str = (
         "Добро пожаловать. Ответьте на это сообщение анкетой: кто вы, "
         "чем занимаетесь и зачем пришли в чат. Можно несколькими сообщениями."
@@ -14,7 +18,6 @@ class BotConfig(BaseModel):
     questionnaire_timeout_minutes: int = 60
     questionnaire_kick_enabled: bool = True
     logging_enabled: bool = True
-    log_flush_interval_minutes: int = 60
     channel_ids: list[int] = Field(default_factory=list)
     inactive_warning_enabled: bool = True
     inactive_check_hours: int = 24
@@ -31,11 +34,16 @@ class BotConfig(BaseModel):
     long_post_burst: int = 3
     long_post_burst_seconds: int = 120
     blacklist: list[int] = Field(default_factory=list)
-    ollama_model: str = "llama3.2"
     nlp_profanity: bool = False
     missing_term_reply: str = "В базе терминов этого нет."
     activity_reminders: list[int] = Field(default_factory=lambda: [1440, 180, 60])
     timezone: str = "Europe/Moscow"
+
+
+class RootConfig(BaseModel):
+    log_flush_interval_minutes: int = 60
+    ollama_model: str = "llama3.2"
+    chats: dict[str, ChatConfig] = Field(default_factory=dict)
 
 
 class NlpJob(BaseModel):
@@ -56,10 +64,3 @@ class MdDocument(BaseModel):
     path: str
     content: str
     updated_at: float
-
-
-class LogChunk(BaseModel):
-    filename: str
-    content: str
-    from_ts: float
-    to_ts: float
