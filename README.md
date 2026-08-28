@@ -35,10 +35,17 @@ Ollama на локальной машине. Пока GUI офлайн, рабо
 Из корня репозитория (в Docker это часто `/app`):
 
 ```bash
-pip install -r server/requirements.txt
-cp server/.env.example server/.env
-python run.py
+pip install -r requirements.txt
+python main.py
 ```
+
+### Bothost
+
+В логах сборки Bothost ставит `CMD ["python", "-m", "server.app.main"]` и ищет `requirements.txt` **в корне**. После этого коммита:
+
+1. В настройках бота укажите главный файл **`main.py`** (или включите свой Dockerfile).
+2. Сделайте **новый деплой**, не только рестарт.
+3. `PORT` возьмётся из окружения (у Bothost это 3000). Токен — из `BOT_TOKEN` / `TELEGRAM_BOT_TOKEN` / `TOKEN`.
 
 Или из каталога `server/`:
 

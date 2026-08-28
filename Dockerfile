@@ -1,8 +1,10 @@
 FROM python:3.12-slim
 WORKDIR /app
-COPY server/requirements.txt /app/server/requirements.txt
-RUN pip install --no-cache-dir -r /app/server/requirements.txt
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY . /app
 ENV PYTHONPATH=/app/server
-WORKDIR /app/server
-CMD ["python", "-m", "app.main"]
+ENV DATA_DIR=/app/data
+RUN mkdir -p /app/data
+EXPOSE 3000
+CMD ["python", "main.py"]
