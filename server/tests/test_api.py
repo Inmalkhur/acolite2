@@ -33,6 +33,9 @@ def test_config_auth(tmp_path) -> None:
     r = c.get("/api/config", headers={"X-Sync-Secret": "change-me"})
     assert r.status_code == 200
     assert "chats" in r.json()
+    assert c.get("/api/config?secret=change-me").status_code == 200
+    assert c.get("/gui").status_code == 200
+    assert c.get("/admin").status_code == 200
 
 
 def test_put_per_chat_config(tmp_path) -> None:

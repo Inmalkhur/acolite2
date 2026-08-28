@@ -90,7 +90,21 @@
     const flags = ["enabled","questionnaire_kick_enabled","logging_enabled","inactive_warning_enabled","nlp_profanity"];
 
     function secret() { return $("secret").value.trim(); }
-    function headers() { return { "Content-Type": "application/json", "X-Sync-Secret": secret() }; }
+    function headers() {
+      const s = secret();
+      return {
+        "Content-Type": "application/json",
+        "X-Sync-Secret": s,
+        "Authorization": "Bearer " + s
+      };
+    }
+    function configUrl() { return "/api/config?secret=" + encodeURIComponent(secret()); }
+    function readSecretStore() {
+      try { return localStorage.getItem("sync_secret"); } catch (e) { return null; }
+    }
+    function writeSecretStore(v) {
+      try { localStorage.setItem("sync_secret", v); } catch (e) {}
+    }
 
     function renderChats() {
       const box = $("chat-list");
@@ -134,32 +148,37 @@
       return root;
     }
     async function load() {
-      const saved = localStorage.getItem("sync_secret");
-      if (saved) $("secret").value = saved;
-      if (!$("secret").value) $("secret").value = "change-me";
-      localStorage.setItem("sync_secret", secret());
-      let health = {};
       try {
-        health = await (await fetch("/health")).json();
-      } catch (e) { health = {}; }
-      const r = await fetch("/api/config", { headers: headers() });
-      const bot = health.bot_username ? "@" + health.bot_username : "бот не поднят";
-      const mode = health.telegram_mode || "?";
-      if (!r.ok) {
-        $("status").innerHTML = '<span class="bad">нет доступа к настройкам</span> · ' + bot +
-          ' · ' + mode + '. Проверьте секрет (по умолчанию change-me).';
-        $("chat-list").textContent = "Чаты появятся после /start или «тест» в группе, если секрет верный.";
-        return;
+        const saved = readSecretStore();
+        if (saved) $("secret").value = saved;
+        if (!$("secret").value) $("secret").value = "change-me";
+        writeSecretStore(secret());
+        let health = {};
+        try {
+          const h = await fetch("/health");
+          health = await h.json();
+        } catch (e) { health = {}; }
+        const r = await fetch(configUrl(), { headers: headers() });
+        const bot = health.bot_username ? "@" + health.bot_username : "бот не поднят";
+        const mode = health.telegram_mode || "?";
+        if (!r.ok) {
+          $("status").innerHTML = '<span class="bad">нет доступа к настройкам (' + r.status + ')</span> · ' + bot +
+            ' · ' + mode + '. Проверьте секрет (по умолчанию change-me).';
+          $("chat-list").textContent = "Чаты появятся после /start или «тест» в группе, если секрет верный.";
+          return;
+        }
+        $("status").innerHTML = '<span class="ok">онлайн</span> · ' + bot + ' · ' + mode +
+          ' · чатов: ' + (health.chats || 0);
+        root = await r.json();
+        const ids = Object.keys(root.chats || {});
+        if (!selected || !root.chats[selected]) selected = ids[0] || "";
+        renderChats(); fill();
+      } catch (e) {
+        $("status").innerHTML = '<span class="bad">GUI: ' + (e && e.message ? e.message : e) + '</span>';
       }
-      $("status").innerHTML = '<span class="ok">онлайн</span> · ' + bot + ' · ' + mode +
-        ' · чатов: ' + (health.chats || 0);
-      root = await r.json();
-      const ids = Object.keys(root.chats || {});
-      if (!selected || !root.chats[selected]) selected = ids[0] || "";
-      renderChats(); fill();
     }
     $("secret").addEventListener("change", () => {
-      localStorage.setItem("sync_secret", secret());
+      writeSecretStore(secret());
       load();
     });
     $("add-chat").onclick = () => {
@@ -189,7 +208,7 @@
     };
     $("save").onclick = async () => {
       const body = collect();
-      const r = await fetch("/api/config", { method: "PUT", headers: headers(), body: JSON.stringify(body) });
+      const r = await fetch(configUrl(), { method: "PUT", headers: headers(), body: JSON.stringify(body) });
       $("msg").textContent = r.ok ? "сохранено" : "ошибка";
     };
     load();

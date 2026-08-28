@@ -7,7 +7,7 @@ from typing import Any
 
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -31,14 +31,31 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
         allow_headers=["*"],
     )
 
-    def check(secret: str | None) -> None:
-        if secret != settings.local_sync_secret:
+    def check(
+        secret: str | None,
+        authorization: str | None = None,
+        query_secret: str | None = None,
+    ) -> None:
+        token = (secret or query_secret or "").strip()
+        if not token and authorization:
+            raw = authorization.strip()
+            if raw.lower().startswith("bearer "):
+                token = raw[7:].strip()
+        if token != settings.local_sync_secret:
             raise HTTPException(401, "bad secret")
+
+    def admin_page() -> HTMLResponse:
+        page = Path(__file__).parent / "templates" / "admin.html"
+        return HTMLResponse(page.read_text(encoding="utf-8"))
 
     @app.get("/", response_class=HTMLResponse)
     async def ui() -> HTMLResponse:
-        page = Path(__file__).parent / "templates" / "admin.html"
-        return HTMLResponse(page.read_text(encoding="utf-8"))
+        return admin_page()
+
+    @app.get("/admin", response_class=HTMLResponse)
+    @app.get("/gui", response_class=HTMLResponse)
+    async def ui_alias() -> HTMLResponse:
+        return admin_page()
 
     @app.get("/health")
     async def health() -> dict:
@@ -64,19 +81,33 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
         return {"ok": True}
 
     @app.get("/api/config")
-    async def get_config(x_sync_secret: str | None = Header(default=None)) -> dict:
-        check(x_sync_secret)
+    async def get_config(
+        x_sync_secret: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+        secret: str | None = Query(default=None),
+    ) -> dict:
+        check(x_sync_secret, authorization, secret)
         return store.root_config.model_dump()
 
     @app.put("/api/config")
-    async def put_config(cfg: RootConfig, x_sync_secret: str | None = Header(default=None)) -> dict:
-        check(x_sync_secret)
+    async def put_config(
+        cfg: RootConfig,
+        x_sync_secret: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+        secret: str | None = Query(default=None),
+    ) -> dict:
+        check(x_sync_secret, authorization, secret)
         await store.replace_config(cfg)
         return {"ok": True}
 
     @app.post("/api/glossary")
-    async def put_glossary(body: GlossarySync, x_sync_secret: str | None = Header(default=None)) -> dict:
-        check(x_sync_secret)
+    async def put_glossary(
+        body: GlossarySync,
+        x_sync_secret: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+        secret: str | None = Query(default=None),
+    ) -> dict:
+        check(x_sync_secret, authorization, secret)
         store.glossary = {}
         for path, content in body.files.items():
             title = path.rsplit("/", 1)[-1].removesuffix(".md")
@@ -89,8 +120,13 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
         return {"ok": True, "terms": list(store.glossary.keys())}
 
     @app.post("/api/nlp/result")
-    async def nlp_result(result: NlpResult, x_sync_secret: str | None = Header(default=None)) -> dict:
-        check(x_sync_secret)
+    async def nlp_result(
+        result: NlpResult,
+        x_sync_secret: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+        secret: str | None = Query(default=None),
+    ) -> dict:
+        check(x_sync_secret, authorization, secret)
         store.nlp_queue = [j for j in store.nlp_queue if j.id != result.id]
         await store.persist()
         if holder.bot and result.ok:
@@ -99,15 +135,24 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
         return {"ok": True}
 
     @app.post("/api/md/ack")
-    async def md_ack(body: dict, x_sync_secret: str | None = Header(default=None)) -> dict:
-        check(x_sync_secret)
+    async def md_ack(
+        body: dict,
+        x_sync_secret: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+        secret: str | None = Query(default=None),
+    ) -> dict:
+        check(x_sync_secret, authorization, secret)
         paths = set(body.get("paths") or [])
         store.md_outbox = [d for d in store.md_outbox if d.path not in paths]
         return {"ok": True}
 
     @app.get("/api/flush-logs")
-    async def flush_logs(x_sync_secret: str | None = Header(default=None)) -> dict:
-        check(x_sync_secret)
+    async def flush_logs(
+        x_sync_secret: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+        secret: str | None = Query(default=None),
+    ) -> dict:
+        check(x_sync_secret, authorization, secret)
         text, start, end = store.drain_logs()
         day = datetime.now(timezone.utc).date().isoformat()
         return {
