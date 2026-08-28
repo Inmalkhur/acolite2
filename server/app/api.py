@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -19,7 +19,7 @@ class GlossarySync(BaseModel):
     files: dict[str, str]
 
 
-def create_app(store: Store, holder: BotHolder) -> FastAPI:
+def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -> FastAPI:
     app = FastAPI(title="Chat admin sync")
     app.add_middleware(
         CORSMiddleware,
@@ -40,6 +40,17 @@ def create_app(store: Store, holder: BotHolder) -> FastAPI:
             "bot": bool(store.bot_username),
             "chats": len(store.chats),
         }
+
+    @app.post("/telegram/webhook")
+    async def telegram_webhook(request: Request) -> dict:
+        if holder.bot is None or dispatcher is None:
+            raise HTTPException(503, "bot is not ready")
+        from aiogram.types import Update
+
+        data = await request.json()
+        update = Update.model_validate(data, context={"bot": holder.bot})
+        await dispatcher.feed_update(holder.bot, update)
+        return {"ok": True}
 
     @app.get("/api/config")
     async def get_config(x_sync_secret: str | None = Header(default=None)) -> dict:

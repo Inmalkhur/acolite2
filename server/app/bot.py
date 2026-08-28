@@ -22,6 +22,14 @@ from app.store import Store
 
 router = Router()
 
+ALLOWED_UPDATES = [
+    "message",
+    "edited_message",
+    "channel_post",
+    "my_chat_member",
+    "chat_member",
+]
+
 _ACTIVE = {
     ChatMemberStatus.MEMBER,
     ChatMemberStatus.ADMINISTRATOR,
@@ -109,10 +117,28 @@ async def on_join(event: ChatMemberUpdated, bot: Bot, store: Store) -> None:
     if await _kick_if_blacklisted(bot, cfg, user.id):
         await store.log_line(f"{time.time():.0f}\tkick_blacklist\t{user.id}", chat_id=chat_id)
         return
-    sent = await bot.send_message(chat_id, cfg.welcome_text)
-    store.pending_questionnaires[_qkey(chat_id, user.id)] = {
+    await greet_member(bot, store, event.chat, user)
+
+
+async def greet_member(bot: Bot, store: Store, chat, user) -> None:
+    cfg = store.chat(chat.id)
+    if not cfg:
+        cfg = await store.ensure_chat(
+            chat.id,
+            title=getattr(chat, "title", None) or str(chat.id),
+            username=getattr(chat, "username", None) or "",
+            chat_type=getattr(getattr(chat, "type", None), "value", None) or str(getattr(chat, "type", "supergroup")),
+        )
+    if not cfg.enabled:
+        return
+    key = _qkey(chat.id, user.id)
+    pending = store.pending_questionnaires.get(key)
+    if pending and not pending.get("done"):
+        return
+    sent = await bot.send_message(chat.id, cfg.welcome_text)
+    store.pending_questionnaires[key] = {
         "user_id": user.id,
-        "chat_id": chat_id,
+        "chat_id": chat.id,
         "username": user.username or "",
         "full_name": user.full_name,
         "joined_at": time.time(),
@@ -120,12 +146,12 @@ async def on_join(event: ChatMemberUpdated, bot: Bot, store: Store) -> None:
         "fragments": [],
         "done": False,
     }
-    act = store.activity.setdefault(str(chat_id), {})
+    act = store.activity.setdefault(str(chat.id), {})
     act.setdefault(
         str(user.id),
         {"count": 0, "last": time.time(), "name": user.full_name, "username": user.username},
     )
-    await store.log_line(f"{time.time():.0f}\tjoin\t{user.id}\t{user.full_name}", chat_id=chat_id)
+    await store.log_line(f"{time.time():.0f}\tjoin\t{user.id}\t{user.full_name}", chat_id=chat.id)
     await store.persist()
 
 
@@ -155,11 +181,35 @@ async def on_channel_post(message: Message, bot: Bot, store: Store) -> None:
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message) -> None:
+async def cmd_start(message: Message, bot: Bot, store: Store) -> None:
+    if message.chat.type in {ChatType.GROUP, ChatType.SUPERGROUP}:
+        cfg = await store.ensure_chat(
+            message.chat.id,
+            title=message.chat.title or str(message.chat.id),
+            username=message.chat.username or "",
+            chat_type=message.chat.type.value,
+        )
+        await message.answer(
+            f"Чат привязан. ID: <code>{cfg.chat_id}</code>\n"
+            "Настройки этого чата — в локальном GUI.",
+            parse_mode="HTML",
+        )
+        return
     await message.answer(
-        "Я админ чатов. Каждый чат настраивается отдельно в локальном GUI. "
-        "После добавления в группу ID подставится сам."
+        "Я админ чатов. Добавьте меня в группу администратором "
+        "(чтение сообщений) и в BotFather выключите Group Privacy. "
+        "После этого ID чата подхватится сам, новых участников поприветствую."
     )
+
+
+@router.message(F.new_chat_members)
+async def on_new_chat_members(message: Message, bot: Bot, store: Store) -> None:
+    if message.chat.type not in {ChatType.GROUP, ChatType.SUPERGROUP}:
+        return
+    for user in message.new_chat_members or []:
+        if user.is_bot:
+            continue
+        await greet_member(bot, store, message.chat, user)
 
 
 @router.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
