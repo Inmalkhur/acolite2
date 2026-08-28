@@ -1,0 +1,8 @@
+{
+  "name": "acolite2-bot",
+  "private": true,
+  "description": "Launcher for Bothost: the real bot is Python. Do not use this as a Node app.",
+  "scripts": {
+    "start": "python3 main.py"
+  }
+}

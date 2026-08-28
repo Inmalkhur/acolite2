@@ -41,11 +41,9 @@ python main.py
 
 ### Bothost
 
-В логах сборки Bothost ставит `CMD ["python", "-m", "server.app.main"]` и ищет `requirements.txt` **в корне**. После этого коммита:
+Хостинг видит `local/package.json` и может собрать **Node**-образ (`CMD node local/eslint.config.mjs`) — это неверно. В корне есть `index.js` + `package.json`, которые запускают **Python** (`python3 main.py`).
 
-1. В настройках бота укажите главный файл **`main.py`** (или включите свой Dockerfile).
-2. Сделайте **новый деплой**, не только рестарт.
-3. `PORT` возьмётся из окружения (у Bothost это 3000). Токен — из `BOT_TOKEN` / `TELEGRAM_BOT_TOKEN` / `TOKEN`.
+Лучше в настройках бота включить **«Использовать собственный Dockerfile»** (Python 3.11) и главный файл **`main.py`**, затем новый деплой.
 
 Или из каталога `server/`:
 
