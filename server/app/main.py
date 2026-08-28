@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Allow `python -m app.main` from /app, /app/server, or `python app/main.py`.
+_SERVER_DIR = Path(__file__).resolve().parent.parent
+if str(_SERVER_DIR) not in sys.path:
+    sys.path.insert(0, str(_SERVER_DIR))
+
 import asyncio
 
 from aiogram import Bot

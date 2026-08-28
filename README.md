@@ -32,17 +32,29 @@ Ollama на локальной машине. Пока GUI офлайн, рабо
 
 ## Сервер (VPS)
 
+Из корня репозитория (в Docker это часто `/app`):
+
+```bash
+pip install -r server/requirements.txt
+cp server/.env.example server/.env
+python run.py
+```
+
+Или из каталога `server/`:
+
 ```bash
 cd server
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # BOT_TOKEN, LOCAL_SYNC_SECRET, PORT=43121
-PYTHONPATH=. python3 -m app.main
+python -m app.main
 ```
+
+`PYTHONPATH` больше не обязателен: `app/main.py` сам добавляет каталог `server/` в путь. Команда `python -m app.main` из корня репозитория (`/app`) без `PYTHONPATH` как раз даёт `No module named 'app'` — используйте `python run.py` или `WORKDIR /app/server`.
 
 Без `BOT_TOKEN` поднимается только API синка (удобно для GUI). С токеном — polling Telegram + тикер киков/напоминаний.
 
-Пример systemd: `WorkingDirectory=/opt/chat-admin/server`, `Environment=PYTHONPATH=/opt/chat-admin/server`, `ExecStart=.../python -m app.main`.
+Пример systemd: `WorkingDirectory=/opt/chat-admin`, `ExecStart=.../python run.py`.
 
 Откройте порт **43121** (или поставьте nginx с TLS перед WebSocket `/ws`).
 
