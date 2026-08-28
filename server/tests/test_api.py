@@ -6,6 +6,15 @@ from app.models import ChatConfig, RootConfig
 from app.store import Store
 
 
+def test_admin_page(tmp_path) -> None:
+    store = Store(tmp_path)
+    app = create_app(store, BotHolder())
+    c = TestClient(app)
+    r = c.get("/")
+    assert r.status_code == 200
+    assert "Админ закрытого чата" in r.text
+
+
 def test_health(tmp_path) -> None:
     store = Store(tmp_path)
     app = create_app(store, BotHolder())

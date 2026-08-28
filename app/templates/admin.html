@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Админ чата</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 1.25rem; }
+    header { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: center; }
+    .muted { color: #666; font-size: .9rem; }
+    .ok { color: #0a7; } .bad { color: #c22; }
+    label { display: block; font-weight: 600; margin: .75rem 0 .25rem; }
+    input, textarea, select { width: 100%; box-sizing: border-box; padding: .45rem .55rem; }
+    textarea { min-height: 5rem; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
+    button { padding: .5rem 1rem; cursor: pointer; }
+    .chats { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 1rem; }
+    .chats button { background: transparent; border: 1px solid #888; }
+    .chats button.on { background: #222; color: #fff; }
+    .card { border: 1px solid #ccc; border-radius: 10px; padding: 1rem; margin: 1rem 0; }
+    pre { white-space: pre-wrap; font-size: .8rem; max-height: 240px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Админ закрытого чата</h1>
+      <p class="muted">Только Python 3.11 · настройки каждого чата отдельно</p>
+    </div>
+    <p id="status" class="muted">…</p>
+  </header>
+  <div class="card">
+    <label>Секрет синка</label>
+    <input id="secret" type="password"/>
+    <p class="muted">Тот же LOCAL_SYNC_SECRET, что на сервере.</p>
+  </div>
+  <div class="card">
+    <label>Модель Ollama</label>
+    <input id="ollama_model"/>
+    <label>Интервал выгрузки логов, мин</label>
+    <input id="log_flush_interval_minutes" type="number"/>
+    <label>Чаты</label>
+    <div id="chat-list" class="chats"></div>
+    <div class="row">
+      <div>
+        <label>Добавить chat_id</label>
+        <input id="manual_id" placeholder="-100123456"/>
+      </div>
+      <div style="align-self:end">
+        <button type="button" id="add-chat">Добавить</button>
+        <button type="button" id="remove-chat">Убрать из списка</button>
+      </div>
+    </div>
+  </div>
+  <div id="editor" class="card" hidden>
+    <h2 id="chat-title">Чат</h2>
+    <label>Название</label><input id="title"/>
+    <label><input id="enabled" type="checkbox"/> бот активен</label>
+    <label>Приветствие</label><textarea id="welcome_text"></textarea>
+    <label>Предупреждение неактивным</label><textarea id="inactive_warning_text"></textarea>
+    <label>Уведомление о муте</label><textarea id="mute_notice"></textarea>
+    <label>Нет термина</label><input id="missing_term_reply"/>
+    <div class="row">
+      <label><input id="questionnaire_kick_enabled" type="checkbox"/> кик без анкеты</label>
+      <div><label>Минут на анкету</label><input id="questionnaire_timeout_minutes" type="number"/></div>
+      <label><input id="logging_enabled" type="checkbox"/> логирование</label>
+      <label><input id="inactive_warning_enabled" type="checkbox"/> пинг неактивных</label>
+      <div><label>Часы между пингами</label><input id="inactive_check_hours" type="number"/></div>
+      <div><label>Мут, секунд</label><input id="mute_seconds" type="number"/></div>
+      <div><label>Длинный пост, символов</label><input id="long_post_chars" type="number"/></div>
+      <label><input id="nlp_profanity" type="checkbox"/> NLP для мата</label>
+    </div>
+    <label>Каналы для репоста (id через запятую)</label><input id="channel_ids"/>
+    <label>Запрещённые выражения (по строке)</label><textarea id="forbidden_words"></textarea>
+    <label>Чёрный список user_id</label><textarea id="blacklist"></textarea>
+    <p><button type="button" id="save">Сохранить на сервер</button> <span id="msg" class="muted"></span></p>
+  </div>
+  <div class="card">
+    <h2>Хвост лога</h2>
+    <pre id="logs">нет данных</pre>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let root = { chats: {}, ollama_model: "llama3.2", log_flush_interval_minutes: 60 };
+    let selected = "";
+    const fields = ["title","welcome_text","inactive_warning_text","mute_notice","missing_term_reply"];
+    const nums = ["questionnaire_timeout_minutes","inactive_check_hours","mute_seconds","long_post_chars"];
+    const flags = ["enabled","questionnaire_kick_enabled","logging_enabled","inactive_warning_enabled","nlp_profanity"];
+
+    function secret() { return $("secret").value.trim(); }
+    function headers() { return { "Content-Type": "application/json", "X-Sync-Secret": secret() }; }
+
+    function renderChats() {
+      const box = $("chat-list");
+      box.innerHTML = "";
+      const ids = Object.keys(root.chats || {});
+      if (!ids.length) box.textContent = "Чатов пока нет. Напишите /start в группе или добавьте id.";
+      ids.forEach((id) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = (root.chats[id].title || id) + (root.chats[id].enabled ? "" : " (выкл)");
+        if (id === selected) b.classList.add("on");
+        b.onclick = () => { selected = id; fill(); renderChats(); };
+        box.appendChild(b);
+      });
+    }
+    function fill() {
+      $("ollama_model").value = root.ollama_model || "";
+      $("log_flush_interval_minutes").value = root.log_flush_interval_minutes || 60;
+      const c = root.chats[selected];
+      $("editor").hidden = !c;
+      if (!c) return;
+      $("chat-title").textContent = "Чат " + c.chat_id;
+      fields.forEach((f) => $(f).value = c[f] || "");
+      nums.forEach((f) => $(f).value = c[f] ?? 0);
+      flags.forEach((f) => $(f).checked = !!c[f]);
+      $("channel_ids").value = (c.channel_ids || []).join(", ");
+      $("forbidden_words").value = (c.forbidden_words || []).join("\n");
+      $("blacklist").value = (c.blacklist || []).join("\n");
+    }
+    function collect() {
+      root.ollama_model = $("ollama_model").value;
+      root.log_flush_interval_minutes = Number($("log_flush_interval_minutes").value || 60);
+      if (!selected || !root.chats[selected]) return root;
+      const c = root.chats[selected];
+      fields.forEach((f) => c[f] = $(f).value);
+      nums.forEach((f) => c[f] = Number($(f).value || 0));
+      flags.forEach((f) => c[f] = $(f).checked);
+      c.channel_ids = $("channel_ids").value.split(",").map((s) => Number(s.trim())).filter((n) => n);
+      c.forbidden_words = $("forbidden_words").value.split("\n").map((s) => s.trim()).filter(Boolean);
+      c.blacklist = $("blacklist").value.split("\n").map((s) => Number(s.trim())).filter((n) => n);
+      return root;
+    }
+    async function load() {
+      const r = await fetch("/api/config", { headers: headers() });
+      $("status").innerHTML = r.ok ? '<span class="ok">сервер онлайн</span>' : '<span class="bad">нет доступа</span>';
+      if (!r.ok) return;
+      root = await r.json();
+      const ids = Object.keys(root.chats || {});
+      if (!selected || !root.chats[selected]) selected = ids[0] || "";
+      renderChats(); fill();
+    }
+    $("add-chat").onclick = () => {
+      const id = Number($("manual_id").value);
+      if (!id) return;
+      root.chats = root.chats || {};
+      if (!root.chats[String(id)]) {
+        root.chats[String(id)] = {
+          chat_id: id, title: String(id), username: "", chat_type: "supergroup", enabled: true,
+          welcome_text: "Добро пожаловать. Ответьте на это сообщение анкетой.",
+          questionnaire_timeout_minutes: 60, questionnaire_kick_enabled: true, logging_enabled: true,
+          channel_ids: [], inactive_warning_enabled: true, inactive_check_hours: 24,
+          inactive_warning_text: "{mention}, вы наименее активны.",
+          forbidden_words: [], mute_seconds: 3600, mute_notice: "Мут на {minutes} мин.",
+          long_post_chars: 800, long_post_burst: 3, long_post_burst_seconds: 120, blacklist: [],
+          nlp_profanity: false, missing_term_reply: "В базе терминов этого нет.",
+          activity_reminders: [1440, 180, 60], timezone: "Europe/Moscow"
+        };
+      }
+      selected = String(id); renderChats(); fill();
+    };
+    $("remove-chat").onclick = () => {
+      if (!selected) return;
+      delete root.chats[selected];
+      selected = Object.keys(root.chats)[0] || "";
+      renderChats(); fill();
+    };
+    $("save").onclick = async () => {
+      const body = collect();
+      const r = await fetch("/api/config", { method: "PUT", headers: headers(), body: JSON.stringify(body) });
+      $("msg").textContent = r.ok ? "сохранено" : "ошибка";
+    };
+    load();
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    try {
+      const ws = new WebSocket(proto + "://" + location.host + "/ws?secret=" + encodeURIComponent(secret()));
+      ws.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "log" && msg.line) {
+          const el = $("logs");
+          el.textContent = (el.textContent + "\n" + msg.line).split("\n").slice(-80).join("\n");
+        }
+        if (msg.type === "snapshot" && msg.logs) $("logs").textContent = (msg.logs || []).slice(-80).join("\n") || "пусто";
+        if ((msg.type === "config" || msg.type === "snapshot") && msg.config) {
+          root = msg.config; renderChats(); fill();
+        }
+      };
+    } catch (e) {}
+  </script>
+</body>
+</html>

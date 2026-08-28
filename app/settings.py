@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     bot_token: str = ""
     local_sync_secret: str = "change-me"
     host: str = "0.0.0.0"
-    port: int = 43121
+    port: int = 3000
     data_dir: Path = Path("./runtime")
 
     @model_validator(mode="after")

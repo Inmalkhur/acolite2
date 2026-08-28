@@ -5,8 +5,11 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from pathlib import Path
+
 from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.holder import BotHolder
@@ -31,6 +34,11 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
     def check(secret: str | None) -> None:
         if secret != settings.local_sync_secret:
             raise HTTPException(401, "bad secret")
+
+    @app.get("/", response_class=HTMLResponse)
+    async def ui() -> HTMLResponse:
+        page = Path(__file__).parent / "templates" / "admin.html"
+        return HTMLResponse(page.read_text(encoding="utf-8"))
 
     @app.get("/health")
     async def health() -> dict:
