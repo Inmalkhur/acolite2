@@ -41,9 +41,9 @@ python main.py
 
 ### Bothost
 
-Хостинг видит `local/package.json` и может собрать **Node**-образ (`CMD node local/eslint.config.mjs`) — это неверно. В корне есть `index.js` + `package.json`, которые запускают **Python** (`python3 main.py`).
+Не оставляйте в репозитории `package.json`: хостинг тогда берёт `FROM node:20-alpine` и запускает что попало (например eslint). Для GUI файлы названы `local/package.gui.json`.
 
-Лучше в настройках бота включить **«Использовать собственный Dockerfile»** (Python 3.11) и главный файл **`main.py`**, затем новый деплой.
+Включите **«Использовать собственный Dockerfile»** (в корне Python 3.11) и укажите главный файл **`main.py`**. Затем **новый деплой**. В логах сборки должно быть `FROM python:3.11-slim`, не `node:20-alpine`.
 
 Или из каталога `server/`:
 
