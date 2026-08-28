@@ -4,8 +4,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-_SERVER = Path(__file__).resolve().parent / "server"
-sys.path.insert(0, str(_SERVER))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.main import main
 
