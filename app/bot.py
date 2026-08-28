@@ -180,6 +180,24 @@ async def on_channel_post(message: Message, bot: Bot, store: Store) -> None:
             await store.log_line(f"{time.time():.0f}\trepost_fail\t{exc}", chat_id=cfg.chat_id)
 
 
+@router.message(Command("ping", "test"))
+async def cmd_ping(message: Message, store: Store) -> None:
+    if message.chat.type in {ChatType.GROUP, ChatType.SUPERGROUP}:
+        await store.ensure_chat(
+            message.chat.id,
+            title=message.chat.title or str(message.chat.id),
+            username=message.chat.username or "",
+            chat_type=message.chat.type.value,
+        )
+    who = f"@{store.bot_username}" if store.bot_username else "бот"
+    await message.answer(f"pong · {who} слышит этот чат")
+
+
+@router.message(F.text.lower().in_({"тест", "ping", "test"}))
+async def cmd_probe_text(message: Message, store: Store) -> None:
+    await cmd_ping(message, store)
+
+
 @router.message(Command("start"))
 async def cmd_start(message: Message, bot: Bot, store: Store) -> None:
     if message.chat.type in {ChatType.GROUP, ChatType.SUPERGROUP}:

@@ -33,8 +33,8 @@
   </header>
   <div class="card">
     <label>Секрет синка</label>
-    <input id="secret" type="password"/>
-    <p class="muted">Тот же LOCAL_SYNC_SECRET, что на сервере.</p>
+    <input id="secret" type="password" value="change-me" autocomplete="off"/>
+    <p class="muted">По умолчанию <code>change-me</code> (переменная LOCAL_SYNC_SECRET). Без секрета список чатов не загрузится.</p>
   </div>
   <div class="card">
     <label>Модель Ollama</label>
@@ -134,14 +134,34 @@
       return root;
     }
     async function load() {
+      const saved = localStorage.getItem("sync_secret");
+      if (saved) $("secret").value = saved;
+      if (!$("secret").value) $("secret").value = "change-me";
+      localStorage.setItem("sync_secret", secret());
+      let health = {};
+      try {
+        health = await (await fetch("/health")).json();
+      } catch (e) { health = {}; }
       const r = await fetch("/api/config", { headers: headers() });
-      $("status").innerHTML = r.ok ? '<span class="ok">сервер онлайн</span>' : '<span class="bad">нет доступа</span>';
-      if (!r.ok) return;
+      const bot = health.bot_username ? "@" + health.bot_username : "бот не поднят";
+      const mode = health.telegram_mode || "?";
+      if (!r.ok) {
+        $("status").innerHTML = '<span class="bad">нет доступа к настройкам</span> · ' + bot +
+          ' · ' + mode + '. Проверьте секрет (по умолчанию change-me).';
+        $("chat-list").textContent = "Чаты появятся после /start или «тест» в группе, если секрет верный.";
+        return;
+      }
+      $("status").innerHTML = '<span class="ok">онлайн</span> · ' + bot + ' · ' + mode +
+        ' · чатов: ' + (health.chats || 0);
       root = await r.json();
       const ids = Object.keys(root.chats || {});
       if (!selected || !root.chats[selected]) selected = ids[0] || "";
       renderChats(); fill();
     }
+    $("secret").addEventListener("change", () => {
+      localStorage.setItem("sync_secret", secret());
+      load();
+    });
     $("add-chat").onclick = () => {
       const id = Number($("manual_id").value);
       if (!id) return;
@@ -173,21 +193,24 @@
       $("msg").textContent = r.ok ? "сохранено" : "ошибка";
     };
     load();
-    const proto = location.protocol === "https:" ? "wss" : "ws";
-    try {
-      const ws = new WebSocket(proto + "://" + location.host + "/ws?secret=" + encodeURIComponent(secret()));
-      ws.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === "log" && msg.line) {
-          const el = $("logs");
-          el.textContent = (el.textContent + "\n" + msg.line).split("\n").slice(-80).join("\n");
-        }
-        if (msg.type === "snapshot" && msg.logs) $("logs").textContent = (msg.logs || []).slice(-80).join("\n") || "пусто";
-        if ((msg.type === "config" || msg.type === "snapshot") && msg.config) {
-          root = msg.config; renderChats(); fill();
-        }
-      };
-    } catch (e) {}
+    function connectWs() {
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      try {
+        const ws = new WebSocket(proto + "://" + location.host + "/ws?secret=" + encodeURIComponent(secret()));
+        ws.onmessage = (ev) => {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === "log" && msg.line) {
+            const el = $("logs");
+            el.textContent = (el.textContent + "\n" + msg.line).split("\n").slice(-80).join("\n");
+          }
+          if (msg.type === "snapshot" && msg.logs) $("logs").textContent = (msg.logs || []).slice(-80).join("\n") || "пусто";
+          if ((msg.type === "config" || msg.type === "snapshot") && msg.config) {
+            root = msg.config; renderChats(); fill();
+          }
+        };
+      } catch (e) {}
+    }
+    setTimeout(connectWs, 0);
   </script>
 </body>
 </html>

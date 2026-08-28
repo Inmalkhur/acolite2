@@ -8,7 +8,6 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 import asyncio
-import os
 
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
@@ -19,17 +18,8 @@ from app.bot import ALLOWED_UPDATES, build_dispatcher, tick_jobs
 from app.holder import BotHolder
 from app.settings import settings
 from app.store import Store
+from app.webhook import resolve_webhook_url
 from app import store as store_mod
-
-
-def _webhook_url() -> str:
-    explicit = os.getenv("WEBHOOK_URL", "").strip()
-    if explicit:
-        return explicit.rstrip("/") + "/telegram/webhook" if not explicit.endswith("webhook") else explicit
-    domain = (os.getenv("DOMAIN") or "").strip().lstrip("https://").lstrip("http://").strip("/")
-    if domain:
-        return f"https://{domain}/telegram/webhook"
-    return ""
 
 
 async def run() -> None:
@@ -59,12 +49,14 @@ async def run() -> None:
                 await asyncio.sleep(30)
 
         ticker = asyncio.create_task(ticks())
-        hook = _webhook_url()
+        hook = resolve_webhook_url()
         if hook:
             await bot.set_webhook(hook, allowed_updates=ALLOWED_UPDATES, drop_pending_updates=False)
+            store.telegram_mode = "webhook"
             print(f"Webhook set: {hook}", flush=True)
         else:
             await bot.delete_webhook(drop_pending_updates=False)
+            store.telegram_mode = "polling"
             polling = asyncio.create_task(
                 dp.start_polling(bot, handle_signals=False, allowed_updates=ALLOWED_UPDATES)
             )

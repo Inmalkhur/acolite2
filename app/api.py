@@ -46,7 +46,10 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
             "ok": True,
             "local_connected": store.local_connected,
             "bot": bool(store.bot_username),
+            "bot_username": store.bot_username or None,
+            "telegram_mode": store.telegram_mode,
             "chats": len(store.chats),
+            "chat_ids": list(store.chats.keys()),
         }
 
     @app.post("/telegram/webhook")

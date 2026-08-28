@@ -22,6 +22,7 @@ def test_health(tmp_path) -> None:
     r = c.get("/health")
     assert r.json()["ok"] is True
     assert r.json()["chats"] == 0
+    assert r.json()["telegram_mode"] == "off"
 
 
 def test_config_auth(tmp_path) -> None:

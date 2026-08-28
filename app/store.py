@@ -42,6 +42,7 @@ class Store:
         self.events: list[dict[str, Any]] = []
         self.last_inactive_ping: dict[str, float] = {}
         self.bot_username: str = ""
+        self.telegram_mode: str = "off"
         self.local_connected: bool = False
         self.ws_clients: set[asyncio.Queue] = set()
         self._load()
