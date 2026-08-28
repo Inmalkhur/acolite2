@@ -27,12 +27,11 @@ python main.py
 
 ## Bothost
 
-Хостинг только **python:3.11**. В карточке бота:
+В карточке бота обязательно:
 
-1. Шаблон **Python / aiogram**, не Node.
-2. Включите **свой Dockerfile** из корня репозитория.
-3. Главный файл **`main.py`**.
-4. Новый деплой. В сборке должно быть `FROM python:3.11-slim`.
+1. **Дополнительные настройки → «Использовать собственный Dockerfile»** — иначе Bothost рисует `FROM node:20-alpine` и `CMD node python3 main.py`.
+2. Главный файл: **`main.py`** (не `python3 main.py`).
+3. Новый деплой. В сборке должно быть **`FROM python:3.11-slim`**. Если видите `python3 (3.12.x)` из Alpine — галочка Dockerfile выключена.
 
 Токен берите из переменных Bothost (`BOT_TOKEN` / `TELEGRAM_BOT_TOKEN`). Не кладите его в Git.
 

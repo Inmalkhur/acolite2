@@ -5,6 +5,18 @@ import sys
 from pathlib import Path
 
 
+def _have_pip() -> bool:
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "--version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except Exception:
+        return False
+
+
 def ensure_runtime_deps() -> None:
     try:
         import fastapi  # noqa: F401
@@ -13,6 +25,10 @@ def ensure_runtime_deps() -> None:
         return
     except ImportError:
         pass
+
+    if not _have_pip():
+        print("Bootstrapping pip via ensurepip ...", flush=True)
+        subprocess.check_call([sys.executable, "-m", "ensurepip", "--upgrade"])
 
     here = Path(__file__).resolve().parent
     candidates = [here.parent / "requirements.txt", here / "requirements.txt"]
