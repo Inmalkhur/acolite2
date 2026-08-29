@@ -205,7 +205,7 @@
           const ids = Object.keys(root.chats || {});
           if (!selected || !root.chats[selected]) selected = ids[0] || "";
           renderChats(); fill();
-        connectWs();
+          connectWs();
           return;
         }
         $("status").innerHTML = '<span class="ok">онлайн</span> · ' + bot + ' · ' + mode +
