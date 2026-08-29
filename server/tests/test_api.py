@@ -37,6 +37,9 @@ def test_config_auth(tmp_path) -> None:
     assert r.status_code == 200
     assert "chats" in r.json()
     assert c.get("/api/config?secret=change-me").status_code == 200
+    assert c.get("/telegram/webhook").status_code == 200
+    assert c.get("/telegram/webhook").json()["ok"] is True
+    assert c.get("/favicon.ico").status_code == 204
 
 
 def test_health_lists_bound_chats(tmp_path) -> None:

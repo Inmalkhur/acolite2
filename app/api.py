@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.holder import BotHolder
@@ -65,6 +66,16 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
             ],
             "data_dir": str(store.root),
         }
+
+    @app.get("/favicon.ico")
+    async def favicon() -> Response:
+        return Response(status_code=204)
+
+    @app.api_route("/telegram/webhook", methods=["GET", "HEAD"])
+    async def telegram_webhook_probe() -> dict:
+        """Bothost and browsers probe with GET; Telegram delivers updates via POST."""
+        ready = holder.bot is not None and dispatcher is not None
+        return {"ok": True, "webhook": "POST updates here", "bot_ready": ready}
 
     @app.post("/telegram/webhook")
     async def telegram_webhook(request: Request) -> dict:
