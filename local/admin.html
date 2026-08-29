@@ -27,14 +27,14 @@
   <header>
     <div>
       <h1>Админ закрытого чата</h1>
-      <p class="muted">Только Python 3.11 · настройки каждого чата отдельно</p>
+      <p class="muted">Локальная панель · на сервере только бот и API</p>
     </div>
     <p id="status" class="muted">…</p>
   </header>
   <div class="card">
     <label>Адрес бота (Bothost)</label>
-    <input id="api_origin" placeholder="https://ваш-бот.bothost.ru" autocomplete="off"/>
-    <p class="muted">Чат <code>-5456516071</code> хранится на сервере бота. Этот превью без токена пустой — укажите публичный URL бота или откройте <code>/gui</code> там. Пустое поле = этот же хост.</p>
+    <input id="api_origin" placeholder="https://ваш-бот.bothost.ru" value="__BOT_API_URL__" autocomplete="off"/>
+    <p class="muted">Эта страница крутится у вас на машине. Вставьте публичный HTTPS URL бота (без <code>/gui</code>) — чат подтянется с сервера.</p>
     <label>Секрет синка</label>
     <input id="secret" type="password" value="change-me" autocomplete="off"/>
     <p class="muted">По умолчанию <code>change-me</code> (переменная LOCAL_SYNC_SECRET). Без секрета список чатов не загрузится.</p>
@@ -120,7 +120,7 @@
       const box = $("chat-list");
       box.innerHTML = "";
       const ids = Object.keys(root.chats || {});
-      if (!ids.length) box.textContent = "Чатов нет на этом адресе. Укажите URL бота на Bothost или откройте /gui там — не этот локальный превью.";
+      if (!ids.length) box.textContent = "Нет чатов: укажите URL API бота выше и нажмите «Обновить с сервера». После /start в группе появится id вроде -5456516071.";
       ids.forEach((id) => {
         const b = document.createElement("button");
         b.type = "button";
@@ -180,9 +180,15 @@
         if (saved) $("secret").value = saved;
         if (!$("secret").value) $("secret").value = "change-me";
         writeStore("sync_secret", secret());
+        if ($("api_origin").value === "__BOT_API_URL__") $("api_origin").value = "";
         const savedOrigin = readStore("api_origin");
         if (savedOrigin && !$("api_origin").value) $("api_origin").value = savedOrigin;
         writeStore("api_origin", apiOrigin());
+        if (!apiOrigin()) {
+          $("status").innerHTML = '<span class="bad">нет адреса бота</span> · вставьте публичный URL API (Bothost) и обновите';
+          renderChats();
+          return;
+        }
         let health = {};
         try {
           const h = await fetch(apiUrl("/health"));
@@ -199,6 +205,7 @@
           const ids = Object.keys(root.chats || {});
           if (!selected || !root.chats[selected]) selected = ids[0] || "";
           renderChats(); fill();
+        connectWs();
           return;
         }
         $("status").innerHTML = '<span class="ok">онлайн</span> · ' + bot + ' · ' + mode +
@@ -208,6 +215,7 @@
         const ids = Object.keys(root.chats || {});
         if (!selected || !root.chats[selected]) selected = ids[0] || "";
         renderChats(); fill();
+        connectWs();
       } catch (e) {
         $("status").innerHTML = '<span class="bad">GUI: ' + (e && e.message ? e.message : e) + '</span>';
       }
@@ -254,7 +262,8 @@
     $("reload").onclick = () => load();
     load();
     function connectWs() {
-      const base = apiOrigin() || (location.protocol + "//" + location.host);
+      if (!apiOrigin()) return;
+      const base = apiOrigin();
       let u;
       try { u = new URL(base); } catch (e) { return; }
       const proto = u.protocol === "https:" ? "wss:" : "ws:";
@@ -273,7 +282,6 @@
         };
       } catch (e) {}
     }
-    setTimeout(connectWs, 0);
   </script>
 </body>
 </html>

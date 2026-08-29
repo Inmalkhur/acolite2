@@ -6,13 +6,16 @@ from app.models import ChatConfig, RootConfig
 from app.store import Store
 
 
-def test_admin_page(tmp_path) -> None:
+def test_root_is_bot_api_not_gui(tmp_path) -> None:
     store = Store(tmp_path)
     app = create_app(store, BotHolder())
     c = TestClient(app)
     r = c.get("/")
     assert r.status_code == 200
-    assert "Админ закрытого чата" in r.text
+    assert r.json()["service"] == "bot"
+    assert "Админ закрытого чата" not in r.text
+    assert c.get("/gui").status_code == 404
+    assert c.get("/admin").status_code == 404
 
 
 def test_health(tmp_path) -> None:
@@ -34,8 +37,6 @@ def test_config_auth(tmp_path) -> None:
     assert r.status_code == 200
     assert "chats" in r.json()
     assert c.get("/api/config?secret=change-me").status_code == 200
-    assert c.get("/gui").status_code == 200
-    assert c.get("/admin").status_code == 200
 
 
 def test_health_lists_bound_chats(tmp_path) -> None:
