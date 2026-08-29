@@ -12,7 +12,7 @@ python local/gui.py
 
 Откройте `http://127.0.0.1:43122/`, вставьте публичный URL бота и секрет (`LOCAL_SYNC_SECRET`, по умолчанию `change-me`). Чат `-5456516071` появится после связи с API.
 
-Опционально: `BOT_API_URL=https://… python local/gui.py` (подставит адрес). Порт: `GUI_PORT`. Только localhost: `GUI_HOST=127.0.0.1` (так по умолчанию).
+Опционально: `BOT_API_URL=https://bot-1787963517-5953-petrel.bothost.tech python local/gui.py` (подставит адрес). Порт: `GUI_PORT`. Только localhost: `GUI_HOST=127.0.0.1` (так по умолчанию).
 
 ## Сервер
 

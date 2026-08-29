@@ -8,6 +8,7 @@ from pathlib import Path
 DIR = Path(__file__).resolve().parent
 HOST = os.environ.get("GUI_HOST", "127.0.0.1")
 PORT = int(os.environ.get("GUI_PORT", "43122"))
+DEFAULT_BOT_API = "https://bot-1787963517-5953-petrel.bothost.tech"
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -21,7 +22,10 @@ class Handler(SimpleHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path in {"/", "/gui", "/admin", "/admin.html"}:
             html = (DIR / "admin.html").read_text(encoding="utf-8")
-            html = html.replace("__BOT_API_URL__", os.environ.get("BOT_API_URL", "").strip())
+            html = html.replace(
+                "__BOT_API_URL__",
+                (os.environ.get("BOT_API_URL") or DEFAULT_BOT_API).strip(),
+            )
             data = html.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
