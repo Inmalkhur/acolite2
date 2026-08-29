@@ -25,6 +25,7 @@ from app import store as store_mod
 async def run() -> None:
     store_mod.store = Store(settings.data_dir)
     store = store_mod.store
+    print(f"Data dir: {store.root} (Bothost persists /app/data)", flush=True)
     holder = BotHolder()
     dp = build_dispatcher(store) if settings.bot_token else None
     app = create_app(store, holder, dispatcher=dp)

@@ -63,6 +63,7 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
                 {"id": c.chat_id, "title": c.title or str(c.chat_id)}
                 for c in store.chats.values()
             ],
+            "data_dir": str(store.root),
         }
 
     @app.post("/telegram/webhook")
