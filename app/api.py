@@ -67,6 +67,10 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
             "telegram_mode": store.telegram_mode,
             "chats": len(store.chats),
             "chat_ids": list(store.chats.keys()),
+            "chat_list": [
+                {"id": c.chat_id, "title": c.title or str(c.chat_id)}
+                for c in store.chats.values()
+            ],
         }
 
     @app.post("/telegram/webhook")
@@ -87,7 +91,7 @@ def create_app(store: Store, holder: BotHolder, dispatcher: Any | None = None) -
         secret: str | None = Query(default=None),
     ) -> dict:
         check(x_sync_secret, authorization, secret)
-        return store.root_config.model_dump()
+        return store.root_config.model_dump(mode="json")
 
     @app.put("/api/config")
     async def put_config(

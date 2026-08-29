@@ -38,6 +38,26 @@ def test_config_auth(tmp_path) -> None:
     assert c.get("/admin").status_code == 200
 
 
+def test_health_lists_bound_chats(tmp_path) -> None:
+    import asyncio
+
+    store = Store(tmp_path)
+
+    async def _add() -> None:
+        await store.ensure_chat(-5456516071, title="Закрытый")
+
+    asyncio.run(_add())
+    app = create_app(store, BotHolder())
+    c = TestClient(app)
+    body = c.get("/health").json()
+    assert body["chats"] == 1
+    assert "-5456516071" in body["chat_ids"]
+    assert body["chat_list"][0]["id"] == -5456516071
+    assert body["chat_list"][0]["title"] == "Закрытый"
+    cfg = c.get("/api/config?secret=change-me").json()
+    assert cfg["chats"]["-5456516071"]["title"] == "Закрытый"
+
+
 def test_put_per_chat_config(tmp_path) -> None:
     store = Store(tmp_path)
     app = create_app(store, BotHolder())

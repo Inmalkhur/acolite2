@@ -32,6 +32,9 @@
     <p id="status" class="muted">…</p>
   </header>
   <div class="card">
+    <label>Адрес бота (Bothost)</label>
+    <input id="api_origin" placeholder="https://ваш-бот.bothost.ru" autocomplete="off"/>
+    <p class="muted">Чат <code>-5456516071</code> хранится на сервере бота. Этот превью без токена пустой — укажите публичный URL бота или откройте <code>/gui</code> там. Пустое поле = этот же хост.</p>
     <label>Секрет синка</label>
     <input id="secret" type="password" value="change-me" autocomplete="off"/>
     <p class="muted">По умолчанию <code>change-me</code> (переменная LOCAL_SYNC_SECRET). Без секрета список чатов не загрузится.</p>
@@ -46,11 +49,12 @@
     <div class="row">
       <div>
         <label>Добавить chat_id</label>
-        <input id="manual_id" placeholder="-100123456"/>
+        <input id="manual_id" placeholder="-5456516071"/>
       </div>
       <div style="align-self:end">
         <button type="button" id="add-chat">Добавить</button>
         <button type="button" id="remove-chat">Убрать из списка</button>
+        <button type="button" id="reload">Обновить с сервера</button>
       </div>
     </div>
   </div>
@@ -90,6 +94,12 @@
     const flags = ["enabled","questionnaire_kick_enabled","logging_enabled","inactive_warning_enabled","nlp_profanity"];
 
     function secret() { return $("secret").value.trim(); }
+    function apiOrigin() {
+      return ($("api_origin").value || "").trim().replace(/\/+$/, "");
+    }
+    function apiUrl(path) {
+      return apiOrigin() + path;
+    }
     function headers() {
       const s = secret();
       return {
@@ -98,19 +108,19 @@
         "Authorization": "Bearer " + s
       };
     }
-    function configUrl() { return "/api/config?secret=" + encodeURIComponent(secret()); }
-    function readSecretStore() {
-      try { return localStorage.getItem("sync_secret"); } catch (e) { return null; }
+    function configUrl() { return apiUrl("/api/config?secret=" + encodeURIComponent(secret())); }
+    function readStore(k) {
+      try { return localStorage.getItem(k); } catch (e) { return null; }
     }
-    function writeSecretStore(v) {
-      try { localStorage.setItem("sync_secret", v); } catch (e) {}
+    function writeStore(k, v) {
+      try { localStorage.setItem(k, v); } catch (e) {}
     }
 
     function renderChats() {
       const box = $("chat-list");
       box.innerHTML = "";
       const ids = Object.keys(root.chats || {});
-      if (!ids.length) box.textContent = "Чатов пока нет. Напишите /start в группе или добавьте id.";
+      if (!ids.length) box.textContent = "Чатов нет на этом адресе. Укажите URL бота на Bothost или откройте /gui там — не этот локальный превью.";
       ids.forEach((id) => {
         const b = document.createElement("button");
         b.type = "button";
@@ -147,29 +157,54 @@
       c.blacklist = $("blacklist").value.split("\n").map((s) => Number(s.trim())).filter((n) => n);
       return root;
     }
+    function mergeHealthChats(health) {
+      const list = health.chat_list || (health.chat_ids || []).map((id) => ({ id: id, title: String(id) }));
+      root.chats = root.chats || {};
+      list.forEach((row) => {
+        const key = String(row.id);
+        if (!root.chats[key]) {
+          root.chats[key] = {
+            chat_id: Number(row.id), title: row.title || key, username: "", chat_type: "supergroup", enabled: true,
+            welcome_text: "", questionnaire_timeout_minutes: 60, questionnaire_kick_enabled: true, logging_enabled: true,
+            channel_ids: [], inactive_warning_enabled: true, inactive_check_hours: 24,
+            inactive_warning_text: "", forbidden_words: [], mute_seconds: 3600, mute_notice: "",
+            long_post_chars: 800, long_post_burst: 3, long_post_burst_seconds: 120, blacklist: [],
+            nlp_profanity: false, missing_term_reply: "", activity_reminders: [1440, 180, 60], timezone: "Europe/Moscow"
+          };
+        }
+      });
+    }
     async function load() {
       try {
-        const saved = readSecretStore();
+        const saved = readStore("sync_secret");
         if (saved) $("secret").value = saved;
         if (!$("secret").value) $("secret").value = "change-me";
-        writeSecretStore(secret());
+        writeStore("sync_secret", secret());
+        const savedOrigin = readStore("api_origin");
+        if (savedOrigin && !$("api_origin").value) $("api_origin").value = savedOrigin;
+        writeStore("api_origin", apiOrigin());
         let health = {};
         try {
-          const h = await fetch("/health");
+          const h = await fetch(apiUrl("/health"));
           health = await h.json();
         } catch (e) { health = {}; }
         const r = await fetch(configUrl(), { headers: headers() });
         const bot = health.bot_username ? "@" + health.bot_username : "бот не поднят";
         const mode = health.telegram_mode || "?";
+        const hostHint = apiOrigin() || location.host;
         if (!r.ok) {
           $("status").innerHTML = '<span class="bad">нет доступа к настройкам (' + r.status + ')</span> · ' + bot +
-            ' · ' + mode + '. Проверьте секрет (по умолчанию change-me).';
-          $("chat-list").textContent = "Чаты появятся после /start или «тест» в группе, если секрет верный.";
+            ' · ' + mode + ' · ' + hostHint;
+          mergeHealthChats(health);
+          const ids = Object.keys(root.chats || {});
+          if (!selected || !root.chats[selected]) selected = ids[0] || "";
+          renderChats(); fill();
           return;
         }
         $("status").innerHTML = '<span class="ok">онлайн</span> · ' + bot + ' · ' + mode +
-          ' · чатов: ' + (health.chats || 0);
+          ' · чатов: ' + (health.chats || 0) + ' · ' + hostHint;
         root = await r.json();
+        mergeHealthChats(health);
         const ids = Object.keys(root.chats || {});
         if (!selected || !root.chats[selected]) selected = ids[0] || "";
         renderChats(); fill();
@@ -178,16 +213,21 @@
       }
     }
     $("secret").addEventListener("change", () => {
-      writeSecretStore(secret());
+      writeStore("sync_secret", secret());
+      load();
+    });
+    $("api_origin").addEventListener("change", () => {
+      writeStore("api_origin", apiOrigin());
       load();
     });
     $("add-chat").onclick = () => {
-      const id = Number($("manual_id").value);
-      if (!id) return;
+      const raw = ($("manual_id").value || "").trim();
+      if (!/^-?\d+$/.test(raw)) return;
+      const idNum = Number(raw);
       root.chats = root.chats || {};
-      if (!root.chats[String(id)]) {
-        root.chats[String(id)] = {
-          chat_id: id, title: String(id), username: "", chat_type: "supergroup", enabled: true,
+      if (!root.chats[raw]) {
+        root.chats[raw] = {
+          chat_id: idNum, title: raw, username: "", chat_type: "supergroup", enabled: true,
           welcome_text: "Добро пожаловать. Ответьте на это сообщение анкетой.",
           questionnaire_timeout_minutes: 60, questionnaire_kick_enabled: true, logging_enabled: true,
           channel_ids: [], inactive_warning_enabled: true, inactive_check_hours: 24,
@@ -198,7 +238,7 @@
           activity_reminders: [1440, 180, 60], timezone: "Europe/Moscow"
         };
       }
-      selected = String(id); renderChats(); fill();
+      selected = raw; renderChats(); fill();
     };
     $("remove-chat").onclick = () => {
       if (!selected) return;
@@ -211,11 +251,15 @@
       const r = await fetch(configUrl(), { method: "PUT", headers: headers(), body: JSON.stringify(body) });
       $("msg").textContent = r.ok ? "сохранено" : "ошибка";
     };
+    $("reload").onclick = () => load();
     load();
     function connectWs() {
-      const proto = location.protocol === "https:" ? "wss" : "ws";
+      const base = apiOrigin() || (location.protocol + "//" + location.host);
+      let u;
+      try { u = new URL(base); } catch (e) { return; }
+      const proto = u.protocol === "https:" ? "wss:" : "ws:";
       try {
-        const ws = new WebSocket(proto + "://" + location.host + "/ws?secret=" + encodeURIComponent(secret()));
+        const ws = new WebSocket(proto + "//" + u.host + "/ws?secret=" + encodeURIComponent(secret()));
         ws.onmessage = (ev) => {
           const msg = JSON.parse(ev.data);
           if (msg.type === "log" && msg.line) {
