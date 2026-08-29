@@ -23,7 +23,7 @@ python main.py
 
 Проверка бота: `/ping` или `тест`. Обычный текст бот не эхоит.
 
-Если `WEBHOOK_URL` указывает на панель хостинга — polling. Принудительно: `TELEGRAM_USE_POLLING=1`.
+Если `WEBHOOK_URL` или `DOMAIN` заданы Bothost — бот всё равно на **polling**, пока не выставите `TELEGRAM_WEBHOOK=1`. Иначе Telegram шлёт апдейты на HTTPS, а контейнер их не получает, `/ping` молчит.
 
 ## Telegram
 

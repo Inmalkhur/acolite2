@@ -56,7 +56,7 @@ async def run() -> None:
             store.telegram_mode = "webhook"
             print(f"Webhook set: {hook}", flush=True)
         else:
-            await bot.delete_webhook(drop_pending_updates=False)
+            await bot.delete_webhook(drop_pending_updates=True)
             store.telegram_mode = "polling"
             polling = asyncio.create_task(
                 dp.start_polling(bot, handle_signals=False, allowed_updates=ALLOWED_UPDATES)
